@@ -17,8 +17,9 @@ printout_freq = 1
 num_episodes = 300
 batch_size = 5
 learning_rate_policy = 0.001
-learning_rate_value = 0.0003
+learning_rate_value = 0.001
 gamma = 0.99
+lam = 0.95 # lambda for GAE-lambda
 train_v_iters = 10
 
 
@@ -46,10 +47,12 @@ num_actions = env.action_space.n
 
 class Buffer:
     
-    def __init__(self):
+    def __init__(self, gamma, lam):
         self.buffer = []
         self.advantages = []
         self.discounted_rewards = []
+        self.gamma = gamma
+        self.lam = lam
 
     def add(self, state, action, value, reward):
         self.buffer.append((state, action, value, reward))
@@ -77,7 +80,7 @@ class Buffer:
         self.advantages = [0] * len(self.buffer)
         for i in range(len(self.advantages)-1):
             if rewards[i] != 0: # if reward is zero, we ended the episode
-                delta = rewards[i] + gamma * values[i+1] - values[i]
+                delta = rewards[i] + self.gamma * values[i+1] - values[i]
                 self.advantages[i] = delta.item()
 
         # Discount advantages
@@ -86,7 +89,7 @@ class Buffer:
             if self.advantages[i] == 0:
                 running_add = 0
             else:
-                running_add = running_add * gamma + self.advantages[i]
+                running_add = running_add * self.gamma * self.lam + self.advantages[i]
                 self.advantages[i] = running_add
 
         # Normalize advantages
@@ -103,7 +106,7 @@ class Buffer:
             if rewards[i] == 0:
                 running_add = 0
             else:
-                running_add = running_add * gamma + rewards[i]
+                running_add = running_add * self.gamma + rewards[i]
                 self.discounted_rewards[i] = running_add
 
 
@@ -113,7 +116,7 @@ class Buffer:
         self.discounted_rewards = []
 
 
-buffer = Buffer()
+buffer = Buffer(gamma, lam)
 
 
 class PolicyNet(nn.Module):
