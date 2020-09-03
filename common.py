@@ -2,19 +2,20 @@ import numpy as np
 import torch
 
 
-def select_action_policy(state, policy_network, env):
+def select_action_policy(state, policy_network, value_network, env):
     """Selects action following a sample of the policy network.
 
     Returns:
-        Selected action.
+        (selected action, value).
     """
     with torch.no_grad():
-        probs = policy_network(state)
+        val = value_network.forward(state).squeeze(0)
+        probs = policy_network(state).squeeze(0)
         m = torch.distributions.Categorical(logits=probs)
         action = m.sample()
 
         action = action.cpu().numpy().item()
-        return action
+        return action, val
 
 
 def select_action_dqn(state, dqn, env, exp_threshold):
