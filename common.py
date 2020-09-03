@@ -6,7 +6,7 @@ def select_action_policy(state, policy_network, value_network, env):
     """Selects action following a sample of the policy network.
 
     Returns:
-        (selected action, value).
+        (selected action, log probability of action, value).
     """
     with torch.no_grad():
         val = value_network.forward(state).squeeze(0)
@@ -14,8 +14,9 @@ def select_action_policy(state, policy_network, value_network, env):
         m = torch.distributions.Categorical(logits=probs)
         action = m.sample()
 
+        log_p = m.log_prob(action)
         action = action.cpu().numpy().item()
-        return action, val
+        return action, log_p, val
 
 
 def select_action_dqn(state, dqn, env, exp_threshold):

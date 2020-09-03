@@ -19,8 +19,10 @@ batch_size = 5
 learning_rate_policy = 0.001
 learning_rate_value = 0.001
 gamma = 0.99
-lam = 0.95 # lambda for GAE-lambda
+lam = 0.99 # lambda for GAE-lambda
 train_v_iters = 10
+train_pi_iters = 10
+clip_ratio=0.1 # how far can new policy deviate from old policy
 
 
 # Initialize visualization
@@ -54,11 +56,11 @@ class Buffer:
         self.gamma = gamma
         self.lam = lam
 
-    def add(self, state, action, value, reward):
-        self.buffer.append((state, action, value, reward))
+    def add(self, state, action, logp, value, reward):
+        self.buffer.append((state, action, logp, value, reward))
 
     def get(self, i):
-        """Return state, action, discounted advantage and discounted reward at i.
+        """Return state, action, log probability of action, discounted advantage and discounted reward at i.
 
         Requires that finalize() has been called previously to calculate
         discounted rewards.
@@ -66,15 +68,15 @@ class Buffer:
         if i >= len(self.buffer) or i >= len(self.advantages) or i >= len(self.discounted_rewards):
             return None
         else:
-            state, action, _, _ = self.buffer[i]
+            state, action, logp, _, _ = self.buffer[i]
             reward = self.discounted_rewards[i]
             advantage = self.advantages[i]
-            return state, torch.FloatTensor([action]).to(device), advantage, reward
+            return state, torch.FloatTensor([action]).to(device), logp, advantage, reward
 
     def finalize(self):
         """Call at end of sample collection to calculate advantages and discounted rewards.
         """
-        _, _, values, rewards = zip(*self.buffer)
+        _, _, _, values, rewards = zip(*self.buffer)
 
         # Calculate advantages
         self.advantages = [0] * len(self.buffer)
@@ -165,7 +167,7 @@ for episode in range(num_episodes):
     state = state.to(device)
 
     for t in count():
-        action, _, val = select_action_policy(state, policy_network, value_network, env)
+        action, logp, val = select_action_policy(state, policy_network, value_network, env)
         _, reward, done, _ = env.step(action)
 
         # Move to next state
@@ -178,7 +180,7 @@ for episode in range(num_episodes):
         if done:
             reward = 0
 
-        buffer.add(state, float(action), val, reward)
+        buffer.add(state, float(action), logp, val, reward)
 
         state = next_state
 
@@ -203,21 +205,27 @@ for episode in range(num_episodes):
         buffer.finalize()
 
         # Policy function learning
-        optimizer_policy.zero_grad()
-        for i in range(steps):
-            state, action, advantage, _ = buffer.get(i)
+        for i in range(train_pi_iters):
+            optimizer_policy.zero_grad()
+            for i in range(steps):
+                state, action, logp_old, advantage, _ = buffer.get(i)
 
-            probs = policy_network(state).squeeze(0)
-            m = torch.distributions.Categorical(logits=probs)
-            policy_loss = -m.log_prob(action) * advantage  # Negtive score function x reward
-            policy_loss.backward()
-        optimizer_policy.step()
+                probs = policy_network(state).squeeze(0)
+                m = torch.distributions.Categorical(logits=probs)
+                logp = m.log_prob(action) # new log probability
+
+                # PPO loss
+                ratio = torch.exp(logp - logp_old)
+                clip_adv = torch.clamp(ratio, 1-clip_ratio, 1+clip_ratio) * advantage
+                policy_loss = -(torch.min(ratio * advantage, clip_adv))
+                policy_loss.backward()
+            optimizer_policy.step()
 
         # Value function learning
         for i in range(train_v_iters):
             optimizer_value.zero_grad()
             for i in range(steps):
-                state, action, _, reward = buffer.get(i)
+                state, action, _, _, reward = buffer.get(i)
 
                 value_loss = ((value_network(state).squeeze(0) - reward)**2).mean()
                 value_loss.backward()
