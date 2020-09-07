@@ -1,5 +1,5 @@
 from env_common import get_screen
-from common import ReplayBuffer, select_action_dqn
+from common import select_action_dqn
 import gym
 from itertools import count
 import math
@@ -92,13 +92,17 @@ class DQN(nn.Module):
         convw = conv2d_size_out(conv2d_size_out(conv2d_size_out(w)))
         convh = conv2d_size_out(conv2d_size_out(conv2d_size_out(h)))
         linear_input_size = convw * convh * 32
-        self.head = nn.Linear(linear_input_size, outputs)
+        self.head = nn.Linear(linear_input_size, outputs+1) # we output the number of actions + value
 
     def forward(self, x):
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
-        return self.head(x.view(x.size(0), -1))
+
+        x = self.head(x.view(x.size(0), -1))
+        values = x[:, 0].unsqueeze(1)
+        advantages = x[:, 1:]
+        return values + (advantages - advantages.mean())
 
 
 # Initialize network and optimizer
