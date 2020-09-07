@@ -28,7 +28,7 @@ viz = visdom.Visdom()
 loss_window = viz.line(
     Y=torch.zeros((1)),
     X=torch.zeros((1)),
-    opts=dict(xlabel='step', ylabel='Loss', title='training loss'))
+    opts=dict(xlabel='step', ylabel='Loss', title='Training loss'))
 
 episode_length_window = viz.line(
     Y=torch.zeros((1)),
@@ -165,7 +165,7 @@ for episode in range(num_episodes):
     state = state.to(device)
 
     for t in count():
-        action, _, val = select_action_policy(state, policy_network, value_network, env)
+        action, _, val = select_action_policy(state, policy_network, value_network)
         _, reward, done, _ = env.step(action)
 
         # Move to next state

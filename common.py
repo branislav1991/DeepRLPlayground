@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 
-def select_action_policy(state, policy_network, value_network, env):
+def select_action_policy(state, policy_network, value_network):
     """Selects action following a sample of the policy network.
 
     Returns:
@@ -28,5 +28,15 @@ def select_action_dqn(state, dqn, env, exp_threshold):
         dqn.eval()
         with torch.no_grad():
             action = torch.argmax(dqn.forward(state)).item()
+
+    return action
+
+
+def select_action_ddpg(state, actor):
+    """Selects action using actor.
+    """
+    actor.eval()
+    with torch.no_grad():
+        action = actor.forward(state).item()
 
     return action

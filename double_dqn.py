@@ -31,7 +31,7 @@ viz = visdom.Visdom()
 loss_window = viz.line(
     Y=torch.zeros((1)),
     X=torch.zeros((1)),
-    opts=dict(xlabel='step', ylabel='Loss', title='training loss'))
+    opts=dict(xlabel='step', ylabel='Loss', title='Training loss'))
 
 episode_length_window = viz.line(
     Y=torch.zeros((1)),
